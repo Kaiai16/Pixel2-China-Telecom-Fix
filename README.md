@@ -46,6 +46,29 @@ adb reboot
 3. 打开 Magisk Manager → 模块 → 从本地安装 → 选择 zip 文件
 4. 重启手机
 
+## ⚠️ 注意事项
+
+**禁止手动设置 VoLTE 相关的 persist 属性！** 模块的 `system.prop` 已经包含了所有必要的属性配置。如果你手动执行了类似以下命令：
+
+```bash
+# ❌ 不要这样做
+setprop persist.dbg.ims_volte_enable 1
+setprop persist.radio.rat_on combine
+setprop persist.data.iwlan.enable true
+```
+
+这些手动设置的 persist 属性会与模块冲突，导致 **WiFi 和蜂窝信号反复断连**。
+
+如果已经误操作，修复方法：
+```bash
+# 删除 persist 属性文件（系统重启后自动重建）
+adb shell "su -c 'rm /data/property/persistent_properties'"
+# 清除 modem 缓存
+adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
+# 重启
+adb reboot
+```
+
 ## 验证
 
 ```bash
@@ -80,6 +103,9 @@ adb shell "getprop gsm.operator.alpha"
 
 **移动/联通卡还能用吗？**
 能，而且比之前更好 — 三大运营商都可以启用 VoLTE 高清通话。
+
+**安装后 WiFi 或信号不稳定？**
+参考上方"注意事项"，很可能是手动设置了 persist 属性导致冲突。删除 `/data/property/persistent_properties` 并清除 modem 缓存后重启即可。
 
 ## 致谢
 
