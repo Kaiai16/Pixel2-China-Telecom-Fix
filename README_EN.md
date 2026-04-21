@@ -46,6 +46,35 @@ adb reboot
 3. Magisk Manager → Modules → Install from storage → select zip
 4. Reboot
 
+## ⚠️ Required After Install: Clean Up system.prop Conflicts
+
+The original module's `system.prop` contains properties from other devices that cause **WiFi and cellular signal to repeatedly disconnect** on Pixel 2. You must remove these lines after installation:
+
+```bash
+# View current system.prop
+adb shell "su -c 'cat /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
+
+# Remove the 4 conflicting lines (iwlan and ims_volte_enable)
+adb shell "su -c 'sed -i \"/persist.dbg.ims_volte_enable/d;/persist.data.iwlan/d\" /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
+
+# Delete stale persist properties
+adb shell "su -c 'rm /data/property/persistent_properties'"
+
+# Clear modem cache
+adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
+
+# Reboot
+adb reboot
+```
+
+Properties to remove:
+- `persist.dbg.ims_volte_enable=1`
+- `persist.data.iwlan.enable=true`
+- `persist.data.iwlan=1`
+- `persist.data.iwlan.ipsec.ap=1`
+
+**Why deleting `persistent_properties` alone isn't enough:** Magisk re-injects properties from the module's `system.prop` on every boot. You must remove them from the source file, otherwise the issue will recur after reboot.
+
 ## Verify
 
 ```bash
@@ -54,6 +83,10 @@ adb shell "getprop gsm.network.type"
 
 # Should show "CHN-CT"
 adb shell "getprop gsm.operator.alpha"
+
+# These should be empty (no output)
+adb shell "getprop persist.dbg.ims_volte_enable"
+adb shell "getprop persist.data.iwlan"
 ```
 
 Or dial `*#*#4636#*#*` → Phone Information → check IMS Service Status.
@@ -80,6 +113,9 @@ Possibly. Check network status after updates and reinstall if needed.
 
 **Does China Mobile / China Unicom still work?**
 Yes, even better — VoLTE is now available for all three carriers.
+
+**WiFi or signal unstable after install?**
+This is caused by conflicting properties in the module's `system.prop`. See the "Required After Install" section above to clean them up.
 
 ## Credits
 

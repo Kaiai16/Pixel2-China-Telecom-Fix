@@ -46,7 +46,36 @@ adb reboot
 3. 打开 Magisk Manager → 模块 → 从本地安装 → 选择 zip 文件
 4. 重启手机
 
-## ⚠️ 注意事项
+## ⚠️ 安装后必做：清理 system.prop 冲突属性
+
+原始模块的 `system.prop` 包含一些不适合 Pixel 2 的属性（来自其他机型），会导致 **WiFi 和蜂窝信号反复断连**。安装模块后必须手动删除以下几行：
+
+```bash
+# 查看当前 system.prop 内容
+adb shell "su -c 'cat /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
+
+# 删除导致冲突的 4 行（iwlan 和 ims_volte_enable）
+adb shell "su -c 'sed -i \"/persist.dbg.ims_volte_enable/d;/persist.data.iwlan/d\" /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
+
+# 删除残留的 persist 属性文件
+adb shell "su -c 'rm /data/property/persistent_properties'"
+
+# 清除 modem 缓存
+adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
+
+# 重启
+adb reboot
+```
+
+需要删除的属性：
+- `persist.dbg.ims_volte_enable=1`
+- `persist.data.iwlan.enable=true`
+- `persist.data.iwlan=1`
+- `persist.data.iwlan.ipsec.ap=1`
+
+**为什么只删 `persistent_properties` 不够？** 因为 Magisk 每次开机都会从模块的 `system.prop` 重新注入这些属性，所以必须从源头（`system.prop` 文件）删除，否则重启后问题会复发。
+
+## ⚠️ 其他注意事项
 
 **禁止手动设置 VoLTE 相关的 persist 属性！** 模块的 `system.prop` 已经包含了所有必要的属性配置。如果你手动执行了类似以下命令：
 
@@ -59,15 +88,7 @@ setprop persist.data.iwlan.enable true
 
 这些手动设置的 persist 属性会与模块冲突，导致 **WiFi 和蜂窝信号反复断连**。
 
-如果已经误操作，修复方法：
-```bash
-# 删除 persist 属性文件（系统重启后自动重建）
-adb shell "su -c 'rm /data/property/persistent_properties'"
-# 清除 modem 缓存
-adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
-# 重启
-adb reboot
-```
+如果已经误操作，修复方法同上：编辑 `system.prop` 删除冲突行 + 删除 `persistent_properties` + 清除 modem 缓存 + 重启。
 
 ## 验证
 
@@ -77,6 +98,10 @@ adb shell "getprop gsm.network.type"
 
 # 应显示 CHN-CT
 adb shell "getprop gsm.operator.alpha"
+
+# 以下属性应为空（无输出）
+adb shell "getprop persist.dbg.ims_volte_enable"
+adb shell "getprop persist.data.iwlan"
 ```
 
 或在拨号盘输入 `*#*#4636#*#*` → 手机信息 → 查看 IMS Service Status。
@@ -105,7 +130,7 @@ adb shell "getprop gsm.operator.alpha"
 能，而且比之前更好 — 三大运营商都可以启用 VoLTE 高清通话。
 
 **安装后 WiFi 或信号不稳定？**
-参考上方"注意事项"，很可能是手动设置了 persist 属性导致冲突。删除 `/data/property/persistent_properties` 并清除 modem 缓存后重启即可。
+这是模块 `system.prop` 中的冲突属性导致的，参考上方「安装后必做」章节清理冲突属性即可。
 
 ## 致谢
 
