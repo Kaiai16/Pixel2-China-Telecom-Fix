@@ -1,0 +1,13 @@
+# Pixel 2 中国电信 LTE 基础属性
+persist.radio.rat_on=combine
+persist.radio.data_ltd_sys_ind=1
+persist.radio.data_con_rprt=1
+persist.vendor.radio.force_ltd_sys_ind=1
+persist.vendor.radio.data_ltd_sys_ind=1
+persist.vendor.radio.data_con_rprt=1
+persist.vendor.radio.enable_temp_dds=true
+persist.vendor.radio.force_on_dc=true
+persist.radio.force_on_dc=true
+persist.radio.NO_STAPA=1
+ro.telephony.default_cdma_sub=0
+ril.subscription.types=RUIM
