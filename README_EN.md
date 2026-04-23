@@ -46,19 +46,59 @@ adb reboot
 3. Magisk Manager → Modules → Install from storage → select zip
 4. Reboot
 
-## ⚠️ Required After Install: Clean Up system.prop Conflicts
+## ⚠️ Required After Install: Replace system.prop
 
-The original module's `system.prop` contains properties from other devices that cause **WiFi and cellular signal to repeatedly disconnect** on Pixel 2. You must remove these lines after installation:
+The original module's `system.prop` contains many properties from other devices (Nubia, etc.) that cause **WiFi and cellular signal to disconnect every few seconds** on Pixel 2. You must replace it with the clean version below.
+
+### Root Cause
+
+The original `system.prop` contains two categories of harmful properties:
+
+**Category 1: iWLAN / WiFi Calling** (Pixel 2 with China Telecom doesn't support WiFi Calling)
+- `persist.dbg.ims_volte_enable=1`
+- `persist.data.iwlan.enable=true`
+- `persist.data.iwlan=1`
+- `persist.data.iwlan.ipsec.ap=1`
+
+**Category 2: VT / WFC / 5G / IMS** (from other devices, unsupported on Pixel 2)
+- `persist.dbg.wfc_avail_ovr=1` — forces WiFi Calling on
+- `persist.dbg.vt_avail_ovr=1` — forces Video Telephony on
+- `persist.radio.VT_HYBRID_ENABLE=1` — hybrid video calling
+- `persist.radio.calls.on.ims=1` — forces IMS calls
+- `persist.vendor.radio.calls.on.ims=1` — forces IMS calls (vendor layer)
+- `persist.nubia.5g.power.config=1` — Nubia 5G config
+- `ro.nubia.nr.support=1` — Nubia 5G support
+- `ro.vendor.radio.5g=3` — 5G radio config
+
+These properties cause `vendor.imsrcsservice` to enter a crash loop (verify with `getprop sys.init.updatable_crashing_process_name`). The IMS service repeatedly crashing and restarting destabilizes the entire network stack, causing both WiFi and cellular to drop.
+
+### Fix: Replace with Clean system.prop
 
 ```bash
-# View current system.prop
-adb shell "su -c 'cat /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
-
-# Remove the 4 conflicting lines (iwlan and ims_volte_enable)
-adb shell "su -c 'sed -i \"/persist.dbg.ims_volte_enable/d;/persist.data.iwlan/d\" /data/adb/modules/Pixel2VolteVoWiFi/system.prop'"
+# Replace system.prop with clean version
+adb shell "su -c 'cat > /data/adb/modules/Pixel2VolteVoWiFi/system.prop << EOF
+persist.radio.rat_on=combine
+persist.rcs.supported=0
+persist.radio.data_ltd_sys_ind=1
+persist.radio.data_con_rprt=1
+persist.vendor.radio.force_ltd_sys_ind=1
+persist.vendor.radio.data_ltd_sys_ind=1
+persist.vendor.radio.enable_temp_dds=true
+persist.vendor.radio.redir_party_num=1
+persist.vendor.radio.force_on_dc=true
+persist.sys.strictmode.disable=true
+persist.radio.dynamic_sar=false
+persist.vendor.radio.data_con_rprt=1
+persist.vendor.dpm.feature=1
+ro.telephony.default_cdma_sub=0
+ril.subscription.types=RUIM
+persist.radio.force_on_dc=true
+persist.radio.NO_STAPA=1
+persist.dbg.volte_avail_ovr=1
+EOF'"
 
 # Delete stale persist properties
-adb shell "su -c 'rm /data/property/persistent_properties'"
+adb shell "su -c 'rm -f /data/property/persistent_properties'"
 
 # Clear modem cache
 adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
@@ -67,13 +107,9 @@ adb shell "su -c 'rm -rf /data/vendor/radio/* /data/vendor/modem_fdr/*'"
 adb reboot
 ```
 
-Properties to remove:
-- `persist.dbg.ims_volte_enable=1`
-- `persist.data.iwlan.enable=true`
-- `persist.data.iwlan=1`
-- `persist.data.iwlan.ipsec.ap=1`
+**Why full replacement instead of deleting specific lines?** The original file has too many harmful properties scattered throughout. A clean replacement is safer than line-by-line deletion.
 
-**Why deleting `persistent_properties` alone isn't enough:** Magisk re-injects properties from the module's `system.prop` on every boot. You must remove them from the source file, otherwise the issue will recur after reboot.
+**Why deleting `persistent_properties` alone isn't enough:** Magisk re-injects properties from the module's `system.prop` on every boot. You must fix the source file, otherwise the issue will recur after reboot.
 
 ## Verify
 
@@ -87,6 +123,11 @@ adb shell "getprop gsm.operator.alpha"
 # These should be empty (no output)
 adb shell "getprop persist.dbg.ims_volte_enable"
 adb shell "getprop persist.data.iwlan"
+adb shell "getprop persist.dbg.wfc_avail_ovr"
+adb shell "getprop persist.dbg.vt_avail_ovr"
+
+# IMS service should NOT be crashing (should be empty)
+adb shell "getprop sys.init.updatable_crashing_process_name"
 ```
 
 Or dial `*#*#4636#*#*` → Phone Information → check IMS Service Status.
@@ -115,7 +156,10 @@ Possibly. Check network status after updates and reinstall if needed.
 Yes, even better — VoLTE is now available for all three carriers.
 
 **WiFi or signal unstable after install?**
-This is caused by conflicting properties in the module's `system.prop`. See the "Required After Install" section above to clean them up.
+This is caused by conflicting properties in the module's `system.prop`. See the "Required After Install" section above to replace it with the clean version.
+
+**How to check if this is the issue?**
+Run `adb shell "getprop sys.init.updatable_crashing_process_name"`. If it outputs `vendor.imsrcsservice`, the IMS service is crash-looping due to bad system.prop properties.
 
 ## Credits
 
